@@ -4,3 +4,4 @@ numpy
 pandas
 huggingface_hub
 tqdm
+pyarrow>=14.0.0
