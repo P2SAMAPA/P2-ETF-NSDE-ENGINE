@@ -5,3 +5,4 @@ torch>=2.0.0
 huggingface_hub
 plotly
 holidays
+pyarrow>=14.0.0
