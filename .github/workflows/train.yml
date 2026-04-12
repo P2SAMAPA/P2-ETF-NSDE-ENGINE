@@ -1,20 +1,21 @@
 name: NSDE Daily Train & Signal Update
 
 on:
-  # Manual trigger (for testing)
+  # Manual trigger for testing
   workflow_dispatch:
-  
-  # Daily training at 00:30 UTC (every day)
+
+  # Daily training every day at 00:30 UTC
   schedule:
     - cron: '30 0 * * *'
-  
-  # Daily signal generation at 23:00 UTC (Mon-Fri)
+
+  # Daily signal generation Mon-Fri at 23:00 UTC
   schedule:
     - cron: '0 23 * * 1-5'
 
 jobs:
   daily_train:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '30 0 * * *')
+    # Run on manual trigger OR daily training schedule
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
 
     steps:
@@ -27,8 +28,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install training dependencies
-        run: |
-          pip install -r requirements_train.txt
+        run: pip install -r requirements_train.txt
 
       - name: Validate input dataset
         run: python validate_dataset.py
@@ -38,7 +38,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
-      - name: Commit trained model (if changed)
+      - name: Commit trained model if changed
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
@@ -47,7 +47,8 @@ jobs:
           git push
 
   daily_signal_update:
-    if: github.event_name == 'schedule' && github.event.schedule == '0 23 * * 1-5'
+    # Run only on the signal update schedule (Mon-Fri)
+    if: github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
 
     steps:
@@ -60,15 +61,14 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Generate daily NSDE signals
         run: python update_daily.py
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
-      - name: Commit latest signals (if changed)
+      - name: Commit latest signals if changed
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
