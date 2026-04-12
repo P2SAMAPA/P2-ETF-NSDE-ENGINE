@@ -1,4 +1,4 @@
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download
 import pandas as pd
 import os
 
@@ -9,33 +9,36 @@ from config import (
 )
 
 def load_dataset(option: str = "both"):
-    """Load pre-processed data from HF dataset (combined parquet files)."""
+    """Load pre-processed data from HF dataset (master.parquet)."""
     print(f"Downloading dataset: {HF_DATASET_INPUT}")
     
-    local_dir = snapshot_download(
-        repo_id=HF_DATASET_INPUT, 
-        repo_type="dataset",
-        allow_patterns=["*.parquet"]
-    )
-    
-    # Load the master parquet file (contains all ETF price columns)
-    master_path = os.path.join(local_dir, "master.parquet")
-    if not os.path.exists(master_path):
-        # Fallback to etf_ohlcv.parquet if master is missing
-        master_path = os.path.join(local_dir, "etf_ohlcv.parquet")
-    
-    if not os.path.exists(master_path):
-        raise FileNotFoundError("No master.parquet or etf_ohlcv.parquet found in dataset.")
+    # Directly download the master.parquet file (or fallback to etf_ohlcv.parquet)
+    try:
+        master_path = hf_hub_download(
+            repo_id=HF_DATASET_INPUT,
+            filename="master.parquet",
+            repo_type="dataset"
+        )
+    except Exception as e:
+        print(f"master.parquet not found, trying etf_ohlcv.parquet: {e}")
+        try:
+            master_path = hf_hub_download(
+                repo_id=HF_DATASET_INPUT,
+                filename="etf_ohlcv.parquet",
+                repo_type="dataset"
+            )
+        except Exception as e2:
+            raise FileNotFoundError("Neither master.parquet nor etf_ohlcv.parquet found in dataset.") from e2
     
     df = pd.read_parquet(master_path)
     
-    # Ensure index is datetime (may already be, but convert if needed)
+    # Ensure index is datetime
     if not isinstance(df.index, pd.DatetimeIndex):
-        # Try to parse a date column if present
         if 'date' in df.columns:
             df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
         else:
+            # Try to infer from first column
             raise ValueError("Dataframe index is not datetime and no 'date' column found.")
     
     # Determine which tickers to load
@@ -48,8 +51,8 @@ def load_dataset(option: str = "both"):
     
     data = {}
     for ticker in tickers_to_load:
-        # Try different column naming patterns: e.g., "AGG_Close", "AGG_Close", or "Close_AGG"
-        possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}"]
+        # Try different column naming patterns
+        possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}", f"{ticker}_Close_adj"]
         close_col = None
         for col in possible_cols:
             if col in df.columns:
@@ -60,7 +63,6 @@ def load_dataset(option: str = "both"):
             print(f"⚠️ No close price column found for {ticker}")
             continue
         
-        # Extract the series, drop NaNs, and create a DataFrame with a 'close' column
         series = df[close_col].dropna()
         if len(series) == 0:
             print(f"⚠️ No valid data for {ticker}")
