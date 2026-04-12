@@ -28,22 +28,29 @@ def load_dataset(option: str = "both"):
     else:
         raise KeyError("Column 'Date' not found in master.parquet")
     
-    # Ensure index is sorted
     df.sort_index(inplace=True)
     print(f"Date range: {df.index[0]} to {df.index[-1]}")
     
-    # Determine which tickers to load
-    if option in ["a", "both"]:
+    # Determine which tickers to load (FIXED)
+    if option == "a":
         tickers_to_load = ["AGG"] + OPTION_A_ETFS
     elif option == "b":
         tickers_to_load = ["SPY"] + OPTION_B_ETFS
-    else:
+    elif option == "both":
         tickers_to_load = ["AGG", "SPY"] + OPTION_A_ETFS + OPTION_B_ETFS
+    else:
+        raise ValueError(f"Invalid option: {option}. Use 'a', 'b', or 'both'.")
     
     data = {}
     for ticker in tickers_to_load:
-        # Try common column patterns for close prices
-        possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}", f"{ticker}_Close_adj"]
+        # Try multiple column patterns for close prices
+        possible_cols = [
+            f"{ticker}_Close",
+            f"{ticker}_close",
+            f"Close_{ticker}",
+            f"{ticker}_Close_adj",
+            f"{ticker}_PRICE"
+        ]
         close_col = None
         for col in possible_cols:
             if col in df.columns:
