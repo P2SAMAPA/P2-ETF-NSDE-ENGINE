@@ -22,16 +22,13 @@ jobs:
         run: pip install -r requirements_train.txt
       - name: Validate input dataset
         run: python validate_dataset.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
       - name: Train NSDE Model (daily)
         run: python train.py --option both
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      - name: Upload model to Hugging Face Hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          pip install -U huggingface_hub
-          hf upload P2SAMAPA/p2-etf-nsde-engine-results nsde_model.pth nsde_model.pth --token $HF_TOKEN
+      # Model upload is handled inside train.py – no separate step needed
 
   daily_signal_update:
     if: github.event.schedule == '0 23 * * 1-5'
