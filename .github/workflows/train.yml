@@ -12,6 +12,8 @@ jobs:
     # Runs on manual trigger OR the 00:30 training schedule
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read   # Only need read access to code
 
     steps:
       - name: Checkout repository
@@ -33,18 +35,23 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
-      - name: Commit trained model if changed
+      - name: Upload trained model to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add nsde_model.pth
-          git diff --staged --quiet || git commit -m "Update trained NSDE model [daily]"
-          git push
+          pip install huggingface_hub
+          huggingface-cli upload \
+            P2SAMAPA/p2-etf-nsde-engine-results \
+            nsde_model.pth \
+            nsde_model.pth \
+            --token $HF_TOKEN
 
   daily_signal_update:
     # Runs only on the 23:00 Mon-Fri schedule
     if: github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read   # No need to write to GitHub
 
     steps:
       - name: Checkout repository
@@ -63,10 +70,14 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
-      - name: Commit latest signals if changed
+      - name: Upload signals to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add signals/
-          git diff --staged --quiet || git commit -m "Daily NSDE signal update"
-          git push
+          pip install huggingface_hub
+          # Upload all JSON files inside signals/ directory recursively
+          huggingface-cli upload \
+            P2SAMAPA/p2-etf-nsde-engine-results \
+            signals/ \
+            signals/ \
+            --token $HF_TOKEN
