@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from huggingface_hub import hf_hub_download
 import config as cfg
-from calendar import next_trading_day, format_next_trading_day
+from trading_calendar import next_trading_day, format_next_trading_day
 
 st.set_page_config(
     page_title="P2 NSDE Engine",
