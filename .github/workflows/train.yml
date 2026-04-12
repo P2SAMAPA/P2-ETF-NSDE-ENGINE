@@ -3,12 +3,10 @@ name: NSDE Daily Train & Signal Update
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'     # Daily training at 00:30 UTC
-    - cron: '0 23 * * 1-5'   # Daily signal update at 23:00 UTC Mon-Fri
+    - cron: '30 0 * * *'     # Daily at 00:30 UTC
 
 jobs:
   daily_train:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,36 +16,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install training dependencies
         run: pip install -r requirements_train.txt
+
       - name: Validate input dataset
         run: python validate_dataset.py
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      - name: Train NSDE Model (daily)
+
+      - name: Train NSDE Model
         run: python train.py --option both
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      # Model upload is handled inside train.py – no separate step needed
 
-  daily_signal_update:
-    # Run on manual trigger OR the 23:00 schedule
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 23 * * 1-5'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
+      - name: Install signal dependencies
         run: pip install -r requirements.txt
-      - name: Generate daily NSDE signals
+
+      - name: Generate and upload signals
         run: python update_daily.py
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
       - name: Upload signals to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
