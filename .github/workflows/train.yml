@@ -31,7 +31,8 @@ jobs:
       # Model upload is handled inside train.py – no separate step needed
 
   daily_signal_update:
-    if: github.event.schedule == '0 23 * * 1-5'
+    # Run on manual trigger OR the 23:00 schedule
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
     permissions:
       contents: read
