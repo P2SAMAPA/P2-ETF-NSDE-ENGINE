@@ -6,7 +6,7 @@ from config import *
 from loader import load_dataset
 from features import engineer_features
 from model import NSDEModel
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, upload_file
 import os
 
 def main():
@@ -24,8 +24,30 @@ def main():
     
     # Save dummy model for structure
     model = NSDEModel(feature_dim=32)
-    torch.save(model.state_dict(), "nsde_model.pth")
-    print("Dummy model saved.")
+    model_path = "nsde_model.pth"
+    torch.save(model.state_dict(), model_path)
+    print(f"Model saved locally as {model_path}")
+
+    # Upload the model to Hugging Face Dataset
+    try:
+        token = os.getenv("HF_TOKEN")  # Read from environment (set in GitHub Actions)
+        if not token:
+            # Fallback to config if defined, otherwise raise
+            token = HF_TOKEN if 'HF_TOKEN' in globals() else None
+        
+        if token:
+            upload_file(
+                path_or_fileobj=model_path,
+                path_in_repo=model_path,          # Root of the dataset repo
+                repo_id=HF_DATASET_OUTPUT,
+                repo_type="dataset",
+                token=token,
+            )
+            print(f"✅ Successfully uploaded model to: {HF_DATASET_OUTPUT}")
+        else:
+            print("⚠️ HF_TOKEN not found. Model not uploaded.")
+    except Exception as e:
+        print(f"⚠️ Failed to upload model to Hugging Face: {e}")
 
 if __name__ == "__main__":
     main()
