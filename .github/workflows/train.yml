@@ -1,0 +1,77 @@
+name: NSDE Train & Daily Signal Update
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+  
+  # Scheduled training (every Sunday at 00:30 UTC)
+  schedule:
+    - cron: '30 0 * * 0'
+  
+  # Daily signal update (Mon-Fri at 23:00 UTC)
+  schedule:
+    - cron: '0 23 * * 1-5'
+
+jobs:
+  train:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '30 0 * * 0')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_train.txt
+
+      - name: Validate dataset
+        run: python validate_dataset.py
+
+      - name: Train NSDE Model
+        run: python train.py --option both
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: Commit trained model (if changed)
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add nsde_model.pth
+          git diff --staged --quiet || git commit -m "Update trained NSDE model"
+          git push
+
+  daily_update:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 23 * * 1-5'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Generate daily NSDE signals
+        run: python update_daily.py
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: Commit latest signals (if changed)
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add signals/
+          git diff --staged --quiet || git commit -m "Daily NSDE signal update"
+          git push
