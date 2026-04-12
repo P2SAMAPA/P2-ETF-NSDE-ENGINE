@@ -1,20 +1,15 @@
 name: NSDE Daily Train & Signal Update
 
 on:
-  # Manual trigger for testing
-  workflow_dispatch:
+  workflow_dispatch:   # Allows manual trigger from GitHub UI
 
-  # Daily training every day at 00:30 UTC
   schedule:
-    - cron: '30 0 * * *'
-
-  # Daily signal generation Mon-Fri at 23:00 UTC
-  schedule:
-    - cron: '0 23 * * 1-5'
+    - cron: '30 0 * * *'     # Daily training at 00:30 UTC (every day)
+    - cron: '0 23 * * 1-5'   # Daily signal update at 23:00 UTC (Mon-Fri only)
 
 jobs:
   daily_train:
-    # Run on manual trigger OR daily training schedule
+    # Runs on manual trigger OR the 00:30 training schedule
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
 
@@ -47,7 +42,7 @@ jobs:
           git push
 
   daily_signal_update:
-    # Run only on the signal update schedule (Mon-Fri)
+    # Runs only on the 23:00 Mon-Fri schedule
     if: github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
 
