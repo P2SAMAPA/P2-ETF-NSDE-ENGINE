@@ -3,44 +3,17 @@ name: NSDE Daily Train & Signal Update
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'     # Daily at 00:30 UTC
+    - cron: '30 0 * * *'
 
 jobs:
-  daily_train:
+  train_and_signal:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install training dependencies
-        run: pip install -r requirements_train.txt
-
-      - name: Validate input dataset
-        run: python validate_dataset.py
+      - run: pip install -r requirements_train.txt
+      - run: python train.py --option both
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
-      - name: Train NSDE Model
-        run: python train.py --option both
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
-      - name: Install signal dependencies
-        run: pip install -r requirements.txt
-
-      - name: Generate and upload signals
-        run: python update_daily.py
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
-      - name: Upload signals to Hugging Face Hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          pip install -U huggingface_hub
-          hf upload P2SAMAPA/p2-etf-nsde-engine-results signals/ signals/ --token $HF_TOKEN
