@@ -1,83 +1,58 @@
 name: NSDE Daily Train & Signal Update
 
 on:
-  workflow_dispatch:   # Allows manual trigger from GitHub UI
-
+  workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'     # Daily training at 00:30 UTC (every day)
-    - cron: '0 23 * * 1-5'   # Daily signal update at 23:00 UTC (Mon-Fri only)
+    - cron: '30 0 * * *'     # Daily training at 00:30 UTC
+    - cron: '0 23 * * 1-5'   # Daily signal update at 23:00 UTC Mon-Fri
 
 jobs:
   daily_train:
-    # Runs on manual trigger OR the 00:30 training schedule
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
     permissions:
-      contents: read   # Only need read access to code
+      contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install training dependencies
         run: pip install -r requirements_train.txt
-
       - name: Validate input dataset
         run: python validate_dataset.py
-
       - name: Train NSDE Model (daily)
         run: python train.py --option both
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
-      - name: Upload trained model to Hugging Face Hub
+      - name: Upload model to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install huggingface_hub
-          huggingface-cli upload \
-            P2SAMAPA/p2-etf-nsde-engine-results \
-            nsde_model.pth \
-            nsde_model.pth \
-            --token $HF_TOKEN
+          pip install -U huggingface_hub
+          hf upload P2SAMAPA/p2-etf-nsde-engine-results nsde_model.pth nsde_model.pth --token $HF_TOKEN
 
   daily_signal_update:
-    # Runs only on the 23:00 Mon-Fri schedule
     if: github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
     permissions:
-      contents: read   # No need to write to GitHub
+      contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Generate daily NSDE signals
         run: python update_daily.py
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-
       - name: Upload signals to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install huggingface_hub
-          # Upload all JSON files inside signals/ directory recursively
-          huggingface-cli upload \
-            P2SAMAPA/p2-etf-nsde-engine-results \
-            signals/ \
-            signals/ \
-            --token $HF_TOKEN
+          pip install -U huggingface_hub
+          hf upload P2SAMAPA/p2-etf-nsde-engine-results signals/ signals/ --token $HF_TOKEN
