@@ -1,6 +1,7 @@
-from huggingface_hub import hf_hub_download
+from huggingface_hub import snapshot_download
 import pandas as pd
 import os
+import glob
 
 from config import (
     HF_DATASET_INPUT,
@@ -12,25 +13,35 @@ def load_dataset(option: str = "both"):
     """Load pre-processed data from HF dataset (master.parquet)."""
     print(f"Downloading dataset: {HF_DATASET_INPUT}")
     
-    # Directly download the master.parquet file (or fallback to etf_ohlcv.parquet)
-    try:
-        master_path = hf_hub_download(
-            repo_id=HF_DATASET_INPUT,
-            filename="master.parquet",
-            repo_type="dataset"
-        )
-    except Exception as e:
-        print(f"master.parquet not found, trying etf_ohlcv.parquet: {e}")
-        try:
-            master_path = hf_hub_download(
-                repo_id=HF_DATASET_INPUT,
-                filename="etf_ohlcv.parquet",
-                repo_type="dataset"
-            )
-        except Exception as e2:
-            raise FileNotFoundError("Neither master.parquet nor etf_ohlcv.parquet found in dataset.") from e2
+    # Download the entire repo (no filtering to see all files)
+    local_dir = snapshot_download(
+        repo_id=HF_DATASET_INPUT,
+        repo_type="dataset",
+        token=os.getenv("HF_TOKEN"),  # Optional but helps with rate limits
+    )
+    
+    # List all downloaded files for debugging
+    print(f"Downloaded to: {local_dir}")
+    all_files = []
+    for root, dirs, files in os.walk(local_dir):
+        for file in files:
+            full_path = os.path.join(root, file)
+            all_files.append(full_path)
+            print(f"Found: {full_path}")
+    
+    # Find any .parquet file (we'll use the first one that contains price data)
+    parquet_files = [f for f in all_files if f.endswith('.parquet')]
+    if not parquet_files:
+        raise FileNotFoundError("No .parquet files found in the downloaded dataset.")
+    
+    # Use the largest parquet file (likely the main data file)
+    parquet_files.sort(key=lambda x: os.path.getsize(x), reverse=True)
+    master_path = parquet_files[0]
+    print(f"Using parquet file: {master_path}")
     
     df = pd.read_parquet(master_path)
+    print(f"DataFrame shape: {df.shape}")
+    print(f"Columns: {df.columns.tolist()[:10]}...")  # Show first 10 columns
     
     # Ensure index is datetime
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -38,7 +49,6 @@ def load_dataset(option: str = "both"):
             df['date'] = pd.to_datetime(df['date'])
             df.set_index('date', inplace=True)
         else:
-            # Try to infer from first column
             raise ValueError("Dataframe index is not datetime and no 'date' column found.")
     
     # Determine which tickers to load
@@ -51,7 +61,7 @@ def load_dataset(option: str = "both"):
     
     data = {}
     for ticker in tickers_to_load:
-        # Try different column naming patterns
+        # Try common column patterns
         possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}", f"{ticker}_Close_adj"]
         close_col = None
         for col in possible_cols:
