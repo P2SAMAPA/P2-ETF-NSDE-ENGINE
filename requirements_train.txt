@@ -1,0 +1,6 @@
+torch>=2.0.0
+torchdiffeq
+numpy
+pandas
+huggingface_hub
+tqdm
