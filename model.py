@@ -28,11 +28,34 @@ class DiffusionNet(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim)
         )
-        # Scale for variance-preserving property
         self.scale = nn.Parameter(torch.ones(output_dim) * 0.1)
     
     def forward(self, h):
         return self.scale * torch.sigmoid(self.net(h))
+
+
+class NSDE_SDE(torch.nn.Module):
+    """SDE wrapper for torchsde"""
+    noise_type = "diagonal"   # required by torchsde
+    sde_type = "ito"          # required by torchsde
+
+    def __init__(self, drift_net, diffusion_net, x_path, t_span):
+        super().__init__()
+        self.drift_net = drift_net
+        self.diffusion_net = diffusion_net
+        self.x_path = x_path          # (batch, time_steps, feature_dim)
+        self.t_span = t_span          # (time_steps,)
+
+    def f(self, t, h):
+        # Interpolate control path at time t
+        # t is a scalar (or 0-dim tensor) but can be batched; we assume t in [0, t_span[-1]]
+        t_norm = t / self.t_span[-1]  # map to [0,1]
+        idx = (t_norm * (self.x_path.shape[1] - 1)).long().clamp(0, self.x_path.shape[1] - 1)
+        x_t = self.x_path[:, idx, :]  # (batch, feature_dim)
+        return self.drift_net(t, h, x_t)
+
+    def g(self, t, h):
+        return self.diffusion_net(h)
 
 
 class NSDEModel(nn.Module):
@@ -55,37 +78,24 @@ class NSDEModel(nn.Module):
         """
         batch_size = x_path.shape[0]
         device = x_path.device
-        
-        # Initial hidden state
         h0 = torch.zeros(batch_size, self.hidden_dim, device=device)
         
-        # Define drift and diffusion functions for torchsde
-        def drift(t, h):
-            # Simple linear interpolation of control path for current time t
-            idx = (t * (x_path.shape[1] - 1)).long().clamp(0, x_path.shape[1] - 1)
-            x_t = x_path[:, idx]
-            return self.drift(t, h, x_t)
+        # Create the SDE object
+        sde = NSDE_SDE(self.drift, self.diffusion, x_path, t_span)
         
-        def diffusion(t, h):
-            return self.diffusion(h)
-        
-        # Solve the SDE using torchsde
+        # Solve the SDE
         hs = torchsde.sdeint(
-            drift,
-            diffusion,
+            sde,
             h0,
             t_span,
-            method='euler',          # or 'milstein', 'stratonovich'
+            method='euler',
             dt=0.05,
-            adaptive=False
-        )
+            adaptive=False,
+            options={'dt': 0.05}
+        )  # shape: (len(t_span), batch, hidden_dim)
         
-        # Take the final hidden state
-        h_final = hs[-1]
-        
-        # Readout → mu and log_sigma
+        h_final = hs[-1]  # (batch, hidden_dim)
         out = self.readout(h_final)
         mu = out[:, 0]
         log_sigma = out[:, 1]
-        
         return mu, log_sigma
