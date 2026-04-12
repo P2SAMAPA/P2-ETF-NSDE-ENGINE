@@ -1,20 +1,20 @@
-name: NSDE Train & Daily Signal Update
+name: NSDE Daily Train & Signal Update
 
 on:
-  # Manual trigger
+  # Manual trigger (for testing)
   workflow_dispatch:
   
-  # Scheduled training (every Sunday at 00:30 UTC)
+  # Daily training at 00:30 UTC (every day)
   schedule:
-    - cron: '30 0 * * 0'
+    - cron: '30 0 * * *'
   
-  # Daily signal update (Mon-Fri at 23:00 UTC)
+  # Daily signal generation at 23:00 UTC (Mon-Fri)
   schedule:
     - cron: '0 23 * * 1-5'
 
 jobs:
-  train:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '30 0 * * 0')
+  daily_train:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '30 0 * * *')
     runs-on: ubuntu-latest
 
     steps:
@@ -26,14 +26,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install training dependencies
         run: |
           pip install -r requirements_train.txt
 
-      - name: Validate dataset
+      - name: Validate input dataset
         run: python validate_dataset.py
 
-      - name: Train NSDE Model
+      - name: Train NSDE Model (daily)
         run: python train.py --option both
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -43,10 +43,10 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add nsde_model.pth
-          git diff --staged --quiet || git commit -m "Update trained NSDE model"
+          git diff --staged --quiet || git commit -m "Update trained NSDE model [daily]"
           git push
 
-  daily_update:
+  daily_signal_update:
     if: github.event_name == 'schedule' && github.event.schedule == '0 23 * * 1-5'
     runs-on: ubuntu-latest
 
