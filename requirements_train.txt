@@ -1,5 +1,5 @@
 torch>=2.0.0
-torchsde
+torchsde>=0.2.5
 numpy
 pandas
 huggingface_hub
