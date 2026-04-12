@@ -21,7 +21,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     if 't10y2y' in df.columns:
         df['yield_curve'] = df['t10y2y']
     
-    # Fill NaNs
-    df = df.fillna(method='ffill').fillna(0)
+    # Fill NaNs (pandas 2.0+ compatible)
+    df = df.ffill().fillna(0)
     
     return df
