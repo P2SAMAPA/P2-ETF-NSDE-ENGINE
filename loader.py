@@ -21,37 +21,16 @@ def load_dataset(option: str = "both"):
     
     df = pd.read_parquet(master_path)
     
-    # Convert index to datetime if it's numeric (Unix timestamp)
-    if pd.api.types.is_numeric_dtype(df.index):
-        # Try to infer if timestamps are in seconds or milliseconds
-        # Typical Unix seconds are ~1.6e9, milliseconds ~1.6e12
-        sample = df.index[0]
-        if sample > 1e12:  # milliseconds
-            df.index = pd.to_datetime(df.index, unit='ms')
-        else:  # seconds
-            df.index = pd.to_datetime(df.index, unit='s')
-        print(f"Converted numeric index to datetime: {df.index[0]} to {df.index[-1]}")
+    # Convert 'Date' column from milliseconds to datetime and set as index
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], unit='ms')
+        df.set_index('Date', inplace=True)
+    else:
+        raise KeyError("Column 'Date' not found in master.parquet")
     
-    # If index is still not datetime, try to find a date column
-    if not isinstance(df.index, pd.DatetimeIndex):
-        date_col = None
-        for col in df.columns:
-            if col.lower() in ['date', 'datetime', 'timestamp', 'ds', 'time']:
-                date_col = col
-                break
-        if date_col is None:
-            # Check for any datetime column
-            for col in df.columns:
-                if pd.api.types.is_datetime64_any_dtype(df[col]):
-                    date_col = col
-                    break
-        
-        if date_col:
-            print(f"Using '{date_col}' as date column")
-            df[date_col] = pd.to_datetime(df[date_col])
-            df.set_index(date_col, inplace=True)
-        else:
-            raise ValueError("Could not convert index to datetime and no date column found.")
+    # Ensure index is sorted
+    df.sort_index(inplace=True)
+    print(f"Date range: {df.index[0]} to {df.index[-1]}")
     
     # Determine which tickers to load
     if option in ["a", "both"]:
