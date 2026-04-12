@@ -12,7 +12,6 @@ def load_dataset(option: str = "both"):
     """Load pre-processed data from HF dataset (master.parquet)."""
     print(f"Downloading dataset: {HF_DATASET_INPUT}")
     
-    # Directly download master.parquet from the data/ subdirectory
     master_path = hf_hub_download(
         repo_id=HF_DATASET_INPUT,
         filename="data/master.parquet",
@@ -22,13 +21,37 @@ def load_dataset(option: str = "both"):
     
     df = pd.read_parquet(master_path)
     
-    # Ensure index is datetime
+    # Convert index to datetime if it's numeric (Unix timestamp)
+    if pd.api.types.is_numeric_dtype(df.index):
+        # Try to infer if timestamps are in seconds or milliseconds
+        # Typical Unix seconds are ~1.6e9, milliseconds ~1.6e12
+        sample = df.index[0]
+        if sample > 1e12:  # milliseconds
+            df.index = pd.to_datetime(df.index, unit='ms')
+        else:  # seconds
+            df.index = pd.to_datetime(df.index, unit='s')
+        print(f"Converted numeric index to datetime: {df.index[0]} to {df.index[-1]}")
+    
+    # If index is still not datetime, try to find a date column
     if not isinstance(df.index, pd.DatetimeIndex):
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
+        date_col = None
+        for col in df.columns:
+            if col.lower() in ['date', 'datetime', 'timestamp', 'ds', 'time']:
+                date_col = col
+                break
+        if date_col is None:
+            # Check for any datetime column
+            for col in df.columns:
+                if pd.api.types.is_datetime64_any_dtype(df[col]):
+                    date_col = col
+                    break
+        
+        if date_col:
+            print(f"Using '{date_col}' as date column")
+            df[date_col] = pd.to_datetime(df[date_col])
+            df.set_index(date_col, inplace=True)
         else:
-            raise ValueError("Dataframe index is not datetime and no 'date' column found.")
+            raise ValueError("Could not convert index to datetime and no date column found.")
     
     # Determine which tickers to load
     if option in ["a", "both"]:
@@ -40,7 +63,7 @@ def load_dataset(option: str = "both"):
     
     data = {}
     for ticker in tickers_to_load:
-        # Try common column patterns
+        # Try common column patterns for close prices
         possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}", f"{ticker}_Close_adj"]
         close_col = None
         for col in possible_cols:
