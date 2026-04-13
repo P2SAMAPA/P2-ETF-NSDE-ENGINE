@@ -144,12 +144,15 @@ def render_tab(signal, label):
     except:
         gen_time = "Unknown"
 
+    # Convert expected return to percentage with two decimals
+    top_mu_pct = top_mu * 100
+
     # Hero box with top pick and next trading date inside
     st.markdown(f"""
     <div class="hero-box">
         <div class="top-pick-label">TOP PICK</div>
         <div class="top-pick-ticker">{top}</div>
-        <div class="expected-return">Expected Return: {top_mu:.4f}</div>
+        <div class="expected-return">Expected Return: {top_mu_pct:.2f}% for next trading day</div>
         <div class="small-date">📅 US Markets Next Trading Day: {format_next_trading_day()} • Generated: {gen_time}</div>
     </div>
     """, unsafe_allow_html=True)
