@@ -3,9 +3,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import json
 from datetime import datetime
+import numpy as np
 from huggingface_hub import hf_hub_download
 import config as cfg
 from trading_calendar import format_next_trading_day
+from loader import load_dataset
 
 st.set_page_config(
     page_title="P2 NSDE Engine",
@@ -21,7 +23,7 @@ st.markdown("""
     background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
     border-radius: 20px;
     padding: 1.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     color: white;
     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
 }
@@ -49,6 +51,30 @@ st.markdown("""
     border-top: 1px solid rgba(255,255,255,0.2);
     padding-top: 0.75rem;
 }
+.metrics-container {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 1rem;
+    margin: 1rem 0;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+.metric-card {
+    text-align: center;
+    padding: 0.5rem 1rem;
+}
+.metric-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.metric-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,6 +94,35 @@ def load_signal(opt: str):
     except Exception as e:
         st.warning(f"Could not load signal_{opt}.json — {str(e)[:100]}")
         return None
+
+@st.cache_data(ttl=3600)
+def load_historical_prices():
+    """Load all historical close prices from the input dataset."""
+    data = load_dataset("both")
+    return {ticker: df['close'] for ticker, df in data.items()}
+
+def compute_metrics(price_series):
+    """Compute annualized return, Sharpe ratio, max drawdown over available period."""
+    if price_series is None or len(price_series) < 2:
+        return None, None, None
+    daily_returns = price_series.pct_change().dropna()
+    if len(daily_returns) == 0:
+        return None, None, None
+    # Annualized return (assuming 252 trading days)
+    ann_return = (price_series.iloc[-1] / price_series.iloc[0]) ** (252 / len(daily_returns)) - 1
+    # Annualized volatility
+    ann_vol = daily_returns.std() * np.sqrt(252)
+    # Sharpe ratio (risk-free rate = 0)
+    sharpe = ann_return / ann_vol if ann_vol != 0 else 0
+    # Max drawdown
+    cumulative = (1 + daily_returns).cumprod()
+    running_max = cumulative.expanding().max()
+    drawdown = (cumulative - running_max) / running_max
+    max_dd = drawdown.min()
+    return ann_return, sharpe, max_dd
+
+# Preload historical prices
+historical_prices = load_historical_prices()
 
 signal_a = load_signal("A")
 signal_b = load_signal("B")
@@ -97,6 +152,19 @@ def render_tab(signal, label):
         <div class="small-date">📅 US Markets Next Trading Day: {format_next_trading_day()} • Generated: {gen_time}</div>
     </div>
     """, unsafe_allow_html=True)
+
+    # ---- Metrics for the top pick (separate container) ----
+    if top and top in historical_prices:
+        ann_ret, sharpe, max_dd = compute_metrics(historical_prices[top])
+        if ann_ret is not None:
+            st.markdown('<div class="metrics-container">', unsafe_allow_html=True)
+            col1, col2, col3 = st.columns(3)
+            col1.markdown(f'<div class="metric-card"><div class="metric-label">Annual Return</div><div class="metric-value">{ann_ret:.2%}</div></div>', unsafe_allow_html=True)
+            col2.markdown(f'<div class="metric-card"><div class="metric-label">Sharpe Ratio</div><div class="metric-value">{sharpe:.2f}</div></div>', unsafe_allow_html=True)
+            col3.markdown(f'<div class="metric-card"><div class="metric-label">Max Drawdown</div><div class="metric-value">{max_dd:.2%}</div></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("⚠️ Historical price data not available for top pick to compute metrics.")
 
     # Regime Context as metrics row
     rc = signal.get("regime_context", {})
