@@ -170,13 +170,6 @@ def render_tab(signal, label):
     else:
         st.info("⚠️ Historical price data not available for top pick to compute metrics.")
 
-    # Regime Context as metrics row
-    rc = signal.get("regime_context", {})
-    col1, col2, col3 = st.columns(3)
-    col1.metric("VIX", rc.get('VIX', 'N/A'))
-    col2.metric("T10Y2Y (Yield Curve)", rc.get('T10Y2Y', 'N/A'))
-    col3.metric("HY Spread (bps)", rc.get('HY_SPREAD', 'N/A'))
-
     # Forecast bar chart
     tickers = cfg.OPTION_A_ETFS if label == "A" else cfg.OPTION_B_ETFS
     data = []
