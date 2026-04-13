@@ -22,13 +22,12 @@ def engineer_features(df: pd.DataFrame, macro_df: pd.DataFrame = None) -> pd.Dat
     if macro_df is not None:
         # Reindex macro to same datetime index as ETF (forward fill)
         macro_aligned = macro_df.reindex(df.index, method='ffill')
-        # Optionally compute changes (e.g., VIX change)
         for col in macro_aligned.columns:
             X[f'macro_{col}'] = macro_aligned[col]
-        # Also add a macro momentum term (e.g., 5-day change)
+        # Add macro momentum (5-day change)
         for col in macro_aligned.columns:
             X[f'macro_{col}_chg5'] = macro_aligned[col].pct_change(5)
 
-    # Fill NaN and return
-    X = X.fillna(method='ffill').fillna(0)
+    # Fill NaNs – pandas 2.0+ compatible (use ffill then fillna)
+    X = X.ffill().fillna(0)
     return X
