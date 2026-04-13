@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for hero box
+# Custom CSS for hero box and metrics
 st.markdown("""
 <style>
 .hero-box {
@@ -52,13 +52,14 @@ st.markdown("""
     padding-top: 0.75rem;
 }
 .metrics-container {
-    background: #1e293b;
+    background: #f8fafc;
     border-radius: 16px;
     padding: 1rem;
     margin: 1rem 0;
     display: flex;
     justify-content: space-around;
     flex-wrap: wrap;
+    border: 1px solid #e2e8f0;
 }
 .metric-card {
     text-align: center;
@@ -66,14 +67,14 @@ st.markdown("""
 }
 .metric-label {
     font-size: 0.8rem;
-    color: #94a3b8;
+    color: #475569;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 .metric-value {
     font-size: 1.4rem;
     font-weight: 700;
-    color: #f1f5f9;
+    color: #000000;
 }
 </style>
 """, unsafe_allow_html=True)
