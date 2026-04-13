@@ -8,3 +8,4 @@ torchsde>=0.2.5
 holidays>=0.25
 pyarrow>=14.0.0
 matplotlib>=3.5.0
+scipy>=1.10.0
