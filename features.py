@@ -1,27 +1,34 @@
 import pandas as pd
 import numpy as np
 
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Engineer features for NSDE model - same logic as original for compatibility."""
+def engineer_features(df: pd.DataFrame, macro_df: pd.DataFrame = None) -> pd.DataFrame:
+    """Engineer features for NSDE model from ETF prices, optionally merge macro data."""
     df = df.copy()
-    
-    # Log returns
+    # Price-derived features
     df['log_return'] = np.log(df['close'] / df['close'].shift(1))
-    
-    # Volatility (20-day)
     df['vol_20'] = df['log_return'].rolling(20).std() * np.sqrt(252)
-    
-    # Momentum
     df['mom_10'] = df['close'] / df['close'].shift(10) - 1
     df['mom_60'] = df['close'] / df['close'].shift(60) - 1
-    
-    # Macro features (if present)
-    if 'vix' in df.columns:
-        df['vix_change'] = df['vix'].pct_change()
-    if 't10y2y' in df.columns:
-        df['yield_curve'] = df['t10y2y']
-    
-    # Fill NaNs (pandas 2.0+ compatible)
-    df = df.ffill().fillna(0)
-    
-    return df
+
+    # Select core feature columns
+    feature_cols = ['vol_20', 'mom_10', 'mom_60']
+    available = [c for c in feature_cols if c in df.columns]
+    if not available:
+        df['log_return_feat'] = df['log_return']
+        available = ['log_return_feat']
+    X = df[available].copy()
+
+    # Merge macro variables if provided
+    if macro_df is not None:
+        # Reindex macro to same datetime index as ETF (forward fill)
+        macro_aligned = macro_df.reindex(df.index, method='ffill')
+        # Optionally compute changes (e.g., VIX change)
+        for col in macro_aligned.columns:
+            X[f'macro_{col}'] = macro_aligned[col]
+        # Also add a macro momentum term (e.g., 5-day change)
+        for col in macro_aligned.columns:
+            X[f'macro_{col}_chg5'] = macro_aligned[col].pct_change(5)
+
+    # Fill NaN and return
+    X = X.fillna(method='ffill').fillna(0)
+    return X
