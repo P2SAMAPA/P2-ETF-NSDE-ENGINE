@@ -9,66 +9,96 @@ from config import (
 )
 
 def load_dataset(option: str = "both"):
-    """Load pre-processed data from HF dataset (master.parquet)."""
+    """Load ETF price data from master.parquet."""
     print(f"Downloading dataset: {HF_DATASET_INPUT}")
-    
     master_path = hf_hub_download(
         repo_id=HF_DATASET_INPUT,
         filename="data/master.parquet",
         repo_type="dataset",
         token=os.getenv("HF_TOKEN")
     )
-    
     df = pd.read_parquet(master_path)
-    
-    # Convert 'Date' column from milliseconds to datetime and set as index
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], unit='ms')
         df.set_index('Date', inplace=True)
-    else:
-        raise KeyError("Column 'Date' not found in master.parquet")
-    
     df.sort_index(inplace=True)
-    print(f"Date range: {df.index[0]} to {df.index[-1]}")
-    
-    # Determine which tickers to load (FIXED)
-    if option == "a":
+
+    if option in ["a", "both"]:
         tickers_to_load = ["AGG"] + OPTION_A_ETFS
     elif option == "b":
         tickers_to_load = ["SPY"] + OPTION_B_ETFS
-    elif option == "both":
-        tickers_to_load = ["AGG", "SPY"] + OPTION_A_ETFS + OPTION_B_ETFS
     else:
-        raise ValueError(f"Invalid option: {option}. Use 'a', 'b', or 'both'.")
-    
+        tickers_to_load = ["AGG", "SPY"] + OPTION_A_ETFS + OPTION_B_ETFS
+
     data = {}
     for ticker in tickers_to_load:
-        # Try multiple column patterns for close prices
-        possible_cols = [
-            f"{ticker}_Close",
-            f"{ticker}_close",
-            f"Close_{ticker}",
-            f"{ticker}_Close_adj",
-            f"{ticker}_PRICE"
-        ]
+        possible_cols = [f"{ticker}_Close", f"{ticker}_close", f"Close_{ticker}"]
         close_col = None
         for col in possible_cols:
             if col in df.columns:
                 close_col = col
                 break
-        
         if close_col is None:
-            print(f"⚠️ No close price column found for {ticker}")
+            print(f"⚠️ No close price column for {ticker}")
             continue
-        
         series = df[close_col].dropna()
         if len(series) == 0:
-            print(f"⚠️ No valid data for {ticker}")
             continue
-        
-        ticker_df = pd.DataFrame({'close': series})
-        data[ticker] = ticker_df
-        print(f"✅ Loaded {ticker}: {len(ticker_df)} rows")
-    
-    print(f"Total loaded: {len(data)} tickers")
+        data[ticker] = pd.DataFrame({'close': series})
+        print(f"✅ Loaded {ticker}: {len(series)} rows")
+    print(f"Total loaded ETF tickers: {len(data)}")
     return data
+
+def load_macro_data():
+    """Load macro variables (VIX, T10Y2Y, HY spread) from master.parquet or macro_fred.parquet."""
+    master_path = hf_hub_download(
+        repo_id=HF_DATASET_INPUT,
+        filename="data/master.parquet",
+        repo_type="dataset",
+        token=os.getenv("HF_TOKEN")
+    )
+    df = pd.read_parquet(master_path)
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], unit='ms')
+        df.set_index('Date', inplace=True)
+    df.sort_index(inplace=True)
+    # Look for common macro column names
+    macro_cols = {}
+    for col in df.columns:
+        if 'VIX' in col.upper():
+            macro_cols['VIX'] = df[col]
+        if 'T10Y2Y' in col.upper() or 'yield' in col.lower():
+            macro_cols['T10Y2Y'] = df[col]
+        if 'HY' in col.upper() and 'SPREAD' in col.upper():
+            macro_cols['HY_SPREAD'] = df[col]
+    if not macro_cols:
+        # Fallback: try to load macro_fred.parquet
+        try:
+            macro_path = hf_hub_download(
+                repo_id=HF_DATASET_INPUT,
+                filename="data/macro_fred.parquet",
+                repo_type="dataset",
+                token=os.getenv("HF_TOKEN")
+            )
+            macro_df = pd.read_parquet(macro_path)
+            if 'date' in macro_df.columns:
+                macro_df['date'] = pd.to_datetime(macro_df['date'])
+                macro_df.set_index('date', inplace=True)
+            for col in macro_df.columns:
+                if 'vix' in col.lower():
+                    macro_cols['VIX'] = macro_df[col]
+                if 't10y2y' in col.lower():
+                    macro_cols['T10Y2Y'] = macro_df[col]
+                if 'hy_spread' in col.lower():
+                    macro_cols['HY_SPREAD'] = macro_df[col]
+        except:
+            pass
+    if macro_cols:
+        macro_df = pd.DataFrame(macro_cols).sort_index()
+        macro_df = macro_df.ffill().bfill()  # fill missing
+        print(f"Loaded macro variables: {list(macro_cols.keys())}")
+        return macro_df
+    else:
+        print("⚠️ No macro variables found; using zeros placeholder.")
+        # Return a dummy macro series with same index as first ETF (will be aligned later)
+        return None
