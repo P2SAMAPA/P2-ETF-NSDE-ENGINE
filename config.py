@@ -6,7 +6,7 @@ HF_DATASET_OUTPUT = "P2SAMAPA/p2-etf-nsde-engine-results"
 
 # ETF Universes (including XLB and XLRE)
 OPTION_A_ETFS = ["TLT", "LQD", "HYG", "VNQ", "GLD", "SLV", "PFF", "MBB"]
-OPTION_B_ETFS = ["SPY", "QQQ", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "GDX", "XME"]
+OPTION_B_ETFS = ["SPY", "QQQ", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "GDX", "IWF", "IWM", "XSD", "XBI", "XME"]
 
 BENCHMARK_A = "AGG"
 BENCHMARK_B = "SPY"
